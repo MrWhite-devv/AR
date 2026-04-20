@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AR Image Tracker — Video Player</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <!-- AR.js with Image Tracking support -->
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+
+    /* Hides the default AR.js debug UI */
+    .a-loader-title { display: none !important; }
+
+    /* ── HUD overlay ── */
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 999;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 16px 20px;
+      pointer-events: none;
+    }
+
+    #status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      backdrop-filter: blur(8px);
+      transition: all 0.3s ease;
+    }
+
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #888;
+      transition: background 0.3s ease;
+    }
+
+    #status-badge.scanning  #status-dot { background: #f0a500; animation: pulse 1.2s infinite; }
+    #status-badge.detected  #status-dot { background: #22c55e; }
+    #status-badge.lost      #status-dot { background: #ef4444; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    #video-info {
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-size: 11px;
+      color: #aaa;
+      text-align: right;
+      backdrop-filter: blur(8px);
+      line-height: 1.7;
+    }
+
+    /* ── Bottom bar ── */
+    #bottom-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 999;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+      pointer-events: none;
+    }
+
+    #scan-hint {
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      padding: 10px 24px;
+      font-size: 13px;
+      color: #ccc;
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(8px);
+      transition: opacity 0.5s ease;
+    }
+
+    #scan-hint.hide { opacity: 0; }
+
+    /* ── Corner reticle ── */
+    #reticle {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 180px; height: 180px;
+      pointer-events: none;
+      z-index: 998;
+    }
+    #reticle::before,
+    #reticle::after,
+    #reticle .r-bl,
+    #reticle .r-br {
+      content: '';
+      position: absolute;
+      width: 30px; height: 30px;
+      border-color: rgba(255,255,255,0.6);
+      border-style: solid;
+      transition: border-color 0.3s ease;
+    }
+    #reticle::before  { top:0; left:0;  border-width: 2px 0 0 2px; }
+    #reticle::after   { top:0; right:0; border-width: 2px 2px 0 0; }
+    #reticle .r-bl    { bottom:0; left:0;  border-width: 0 0 2px 2px; }
+    #reticle .r-br    { bottom:0; right:0; border-width: 0 2px 2px 0; }
+
+    #reticle.detected::before,
+    #reticle.detected::after,
+    #reticle.detected .r-bl,
+    #reticle.detected .r-br {
+      border-color: #22c55e;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HUD ── -->
+<div id="hud">
+  <div id="status-badge" class="scanning">
+    <div id="status-dot"></div>
+    <span id="status-text">Scanning…</span>
+  </div>
+  <div id="video-info">
+    <div id="info-title">AR Video Player</div>
+    <div id="info-sub" style="color:#666;">Point at target image</div>
+  </div>
+</div>
+
+<!-- ── Reticle ── -->
+<div id="reticle">
+  <div class="r-bl"></div>
+  <div class="r-br"></div>
+</div>
+
+<!-- ── Bottom hint ── -->
+<div id="bottom-bar">
+  <div id="scan-hint">Point your camera at the target image</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     A-FRAME SCENE
+     ══════════════════════════════════════════ -->
+<a-scene
+  vr-mode-ui="enabled: false"
+  renderer="logarithmicDepthBuffer: true; antialias: true;"
+  embedded
+  arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+>
+
+  <!-- 
+    ╔══════════════════════════════════════╗
+    ║  ASSETS — swap these with your own  ║
+    ╚══════════════════════════════════════╝
+    
+    VIDEO: Replace the src with your video URL or local path.
+    NFT TARGET: Replace "targets/your-target" with the path
+    to YOUR .fset / .fset3 / .iset files (without extension).
+    
+    Use the NFT creator tool to generate these from your image:
+    https://carnaux.github.io/NFT-Marker-Creator/
+  -->
+  <a-assets>
+    <video
+      id="ar-video"
+      src="https://www.w3schools.com/html/mov_bbb.mp4"
+      preload="auto"
+      loop="true"
+      crossorigin="anonymous"
+      playsinline
+      webkit-playsinline
+    ></video>
+  </a-assets>
+
+  <!-- NFT Image Marker -->
+  <a-nft
+    id="nft-marker"
+    type="nft"
+    url="targets/your-target"
+    smooth="true"
+    smoothCount="10"
+    smoothTolerance="0.01"
+    smoothThreshold="5"
+    emitevents="true"
+  >
+    <!--
+      The video plane sits on top of your target image.
+      Adjust width / height to match your image's aspect ratio.
+      position Y offset keeps it floating just above the surface.
+    -->
+    <a-video
+      id="ar-video-plane"
+      src="#ar-video"
+      width="1.6"
+      height="0.9"
+      position="0 0.45 0"
+      rotation="-90 0 0"
+      visible="false"
+    ></a-video>
+  </a-nft>
+
+  <a-entity camera></a-entity>
+</a-scene>
+
+
+<!-- ══════════════════════════════════════════
+     CONTROLLER
+     ══════════════════════════════════════════ -->
+<script>
+  const videoEl    = document.getElementById('ar-video');
+  const videoPlane = document.getElementById('ar-video-plane');
+  const marker     = document.getElementById('nft-marker');
+  const badge      = document.getElementById('status-badge');
+  const dot        = document.getElementById('status-dot');
+  const statusTxt  = document.getElementById('status-text');
+  const hint       = document.getElementById('scan-hint');
+  const reticle    = document.getElementById('reticle');
+  const infoSub    = document.getElementById('info-sub');
+
+  let isTracking = false;
+
+  /* ── Marker FOUND ── */
+  marker.addEventListener('markerFound', () => {
+    if (isTracking) return;
+    isTracking = true;
+
+    // Show the video plane
+    videoPlane.setAttribute('visible', 'true');
+
+    // Play video (user-gesture may be needed on iOS — handled below)
+    videoEl.play().catch(err => console.warn('Autoplay blocked:', err));
+
+    // Update HUD
+    badge.className = 'detected';
+    statusTxt.textContent = 'Target detected';
+    hint.classList.add('hide');
+    reticle.classList.add('detected');
+    infoSub.textContent = 'Video playing';
+    infoSub.style.color = '#22c55e';
+  });
+
+  /* ── Marker LOST ── */
+  marker.addEventListener('markerLost', () => {
+    if (!isTracking) return;
+    isTracking = false;
+
+    videoEl.pause();
+    videoPlane.setAttribute('visible', 'false');
+
+    badge.className = 'lost';
+    statusTxt.textContent = 'Target lost';
+    hint.classList.remove('hide');
+    reticle.classList.remove('detected');
+    infoSub.textContent = 'Point at target image';
+    infoSub.style.color = '#666';
+
+    // After 2s go back to scanning state
+    setTimeout(() => {
+      if (!isTracking) {
+        badge.className = 'scanning';
+        statusTxt.textContent = 'Scanning…';
+      }
+    }, 2000);
+  });
+
+  /*
+    iOS / Mobile autoplay fix:
+    First tap on screen triggers video load so the browser
+    allows .play() later without a gesture requirement.
+  */
+  document.addEventListener('touchstart', () => {
+    videoEl.load();
+  }, { once: true });
+</script>
+
+</body>
+</html>
