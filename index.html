@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MindAR Image Tracking - Video</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <!-- MindAR -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    /* ───────── GLOBAL LOOK ───────── */
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      background: black;
+    }
+
+    /* Camera */
+    video, canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+    }
+
+    /* ───────── CINEMATIC OVERLAY ───────── */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 997;
+    }
+
+    /* vignette */
+    #overlay::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, transparent 60%, rgba(0,0,0,0.6));
+    }
+
+    /* film grain */
+    #overlay::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("https://grainy-gradients.vercel.app/noise.svg");
+      opacity: 0.08;
+      mix-blend-mode: overlay;
+    }
+
+    /* ───────── INTRO SCREEN ───────── */
+    #intro {
+      position: fixed;
+      inset: 0;
+      background: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 1s ease;
+    }
+
+    #intro h1 {
+      color: white;
+      font-weight: 300;
+      letter-spacing: 6px;
+      font-size: 22px;
+      opacity: 0;
+      animation: fadeIn 1.5s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+
+    #intro.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ───────── DETECTION FLASH ───────── */
+    #flash {
+      position: fixed;
+      inset: 0;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    #flash.active {
+      animation: flash 0.4s ease;
+    }
+
+    @keyframes flash {
+      0% { opacity: 0; }
+      40% { opacity: 0.8; }
+      100% { opacity: 0; }
+    }
+
+    /* ───────── SMOOTH UI ───────── */
+    #status, #hint {
+      transition: all 0.4s ease;
+    }
+
+    #status.active {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+
+<body>
+<div id="intro">
+  <h1>MINWEB</h1>
+</div>
+
+<div id="overlay"></div>
+<div id="flash"></div>
+<div id="hint">Point camera at the image</div>
+<script>
+  navigator.mediaDevices.getUserMedia = (constraints => {
+    constraints.video = {
+      facingMode: "environment",
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    };
+    return navigator.mediaDevices.__proto__.getUserMedia.call(navigator.mediaDevices, constraints);
+  });
+</script>
+<a-scene
+  mindar-image="imageTargetSrc: targets.mind; autoStart: true; facingMode: environment;"
+  renderer="precision: high; antialias: true; colorManagement: true; physicallyCorrectLights: true;"
+  color-space="sRGB"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false"
+>
+
+  <a-assets>
+    <!-- YOUR VIDEO -->
+    <video
+      id="video"
+      src="v3.mp4"
+      loop
+      muted
+      playsinline
+      webkit-playsinline
+      crossorigin="anonymous"
+    ></video>
+  </a-assets>
+
+  <!-- IMAGE TARGET -->
+  <a-entity mindar-image-target="targetIndex: 0;">
+
+    <a-video
+      id="videoPlane"
+      src="#video"  
+      width="676"
+      height="901"
+      position="0 0 0"
+      visible="false"
+    ></a-video>
+
+  </a-entity>
+
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+</a-scene>
+
+<script>
+  const video = document.getElementById("video");
+const videoPlane = document.getElementById("videoPlane");
+const target = document.querySelector('[mindar-image-target]');
+
+const status = document.getElementById("status");
+const hint = document.getElementById("hint");
+const reticle = document.getElementById("reticle");
+
+const intro = document.getElementById("intro");
+const flash = document.getElementById("flash");
+
+// 🎬 Intro animation
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    intro.classList.add("hide");
+  }, 1800);
+});
+
+// 🎯 TARGET FOUND
+target.addEventListener("targetFound", () => {
+  videoPlane.setAttribute("visible", true);
+
+  video.currentTime = 0;
+  video.play().catch(() => {});
+
+  // UI updates
+  status.innerText = "LOCKED";
+  status.classList.add("active");
+
+  hint.classList.add("hide");
+  reticle.classList.add("active");
+
+  // 🎬 flash effect
+  flash.classList.add("active");
+  setTimeout(() => flash.classList.remove("active"), 400);
+});
+
+// ❌ TARGET LOST
+  target.addEventListener("targetLost", () => {
+    video.pause();
+    videoPlane.setAttribute("visible", false);
+
+    status.innerText = "SCANNING";
+    status.classList.remove("active");
+
+    hint.classList.remove("hide");
+    reticle.classList.remove("active");
+  });
+</script>
+
+</body>
+</html>
