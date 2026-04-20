@@ -174,17 +174,18 @@
      ══════════════════════════════════════════ -->
 <a-scene
   vr-mode-ui="enabled: false"
-  renderer="logarithmicDepthBuffer: true; antialias: true;"
   embedded
+  renderer="precision: high; antialias: true;"
   arjs="
-  trackingMethod: best;
-  sourceType: webcam;
-  debugUIEnabled: false;
-  sourceWidth: 1280;
-  sourceHeight: 720;
-  displayWidth: 1280;
-  displayHeight: 720;
-"
+    trackingMethod: best;
+    sourceType: webcam;
+    debugUIEnabled: false;
+    facingMode: environment;
+    sourceWidth: 1920;
+    sourceHeight: 1080;
+    displayWidth: 1920;
+    displayHeight: 1080;
+  "
 >
 
   <!-- 
@@ -204,11 +205,13 @@
       id="ar-video"
       src="v3.mp4"
       preload="auto"
-      loop="true"
-      crossorigin="anonymous"
+      loop
+      muted
       playsinline
       webkit-playsinline
-    ></video>
+      crossorigin="anonymous"
+    >
+    </video>
   </a-assets>
 
   <!-- NFT Image Marker -->
