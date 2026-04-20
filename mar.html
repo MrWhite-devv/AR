@@ -32,29 +32,32 @@
       padding: 10px;
       z-index: 999;
     }
+    video {
+    image-rendering: auto;
+    filter: contrast(1.05) saturate(1.05);
+    }
   </style>
 </head>
 
 <body>
 
 <div id="hint">Point camera at the image</div>
-
+<script>
+  navigator.mediaDevices.getUserMedia = (constraints => {
+    constraints.video = {
+      facingMode: "environment",
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    };
+    return navigator.mediaDevices.__proto__.getUserMedia.call(navigator.mediaDevices, constraints);
+  });
+</script>
 <a-scene
-  mindar-image="imageTargetSrc: targets.mind; autoStart: true; uiScanning: false; uiLoading: false;"
+  mindar-image="imageTargetSrc: targets.mind; autoStart: true; facingMode: environment;"
+  renderer="precision: high; antialias: true; colorManagement: true; physicallyCorrectLights: true;"
   color-space="sRGB"
-  renderer="precision: high; antialias: true;"
   vr-mode-ui="enabled: false"
   device-orientation-permission-ui="enabled: false"
-  arjs="
-    trackingMethod: best;
-    sourceType: webcam;
-    debugUIEnabled: false;
-    facingMode: environment;
-    sourceWidth: 1920;
-    sourceHeight: 1080;
-    displayWidth: 1920;
-    displayHeight: 1080;
-  "
 >
 
   <a-assets>
